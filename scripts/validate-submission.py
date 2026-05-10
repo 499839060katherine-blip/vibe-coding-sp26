@@ -2,18 +2,22 @@
 """Validate a student submission file. Exits 0 on success, 1 on any error.
 
 Usage:
-    python3 scripts/validate-submission.py students/<pinyin>-<XYZ>.md
+    python3 scripts/validate-submission.py students/<handle>-<XYZ>.md
 
-The filename pattern <pinyin>-<XYZ>.md is the source of truth for pinyin
-and student_id_suffix. Frontmatter may include them as redundant
-documentation (validated to match), but they're not required.
+Filename pattern: <handle>-<XYZ>.md
+  handle = lowercase English (letters, digits, underscore, dash; starts with letter)
+  XYZ    = student ID last 3 digits (used by instructor for identification only;
+           does not appear in frontmatter or anywhere public-facing)
+
+Frontmatter `name` (required): must equal the handle portion of the filename.
 """
 import sys
 import re
 import yaml
 from pathlib import Path
 
-FILENAME_RE = re.compile(r'^(.+?)-(\d{3})\.md$')
+FILENAME_RE = re.compile(r'^([a-z][a-z0-9_-]*)-(\d{3})\.md$')
+HANDLE_RE = re.compile(r'^[a-z][a-z0-9_-]*$')
 REQUIRED_SUB = ['github_repo', 'website', 'writeup', 'description']
 URL_FIELDS = ['github_repo', 'website', 'writeup']
 
@@ -26,9 +30,9 @@ def main(path_str: str) -> int:
 
     m = FILENAME_RE.match(path.name)
     if not m:
-        print(f"::error file={path}::filename {path.name} does not match expected <pinyin>-<XYZ>.md")
+        print(f"::error file={path}::filename {path.name} does not match expected <handle>-<XYZ>.md (handle: lowercase English, XYZ: 3 digits)")
         return 1
-    filename_pinyin = m.group(1)
+    filename_handle = m.group(1)
     filename_suffix = m.group(2)
 
     content = path.read_text(encoding='utf-8')
@@ -49,15 +53,13 @@ def main(path_str: str) -> int:
 
     errors = []
 
-    if not data.get('name') or not isinstance(data['name'], str):
-        errors.append("missing or non-string name")
-
-    pinyin = data.get('pinyin')
-    if pinyin and pinyin != filename_pinyin:
-        errors.append(f'frontmatter pinyin "{pinyin}" does not match filename "{filename_pinyin}"')
-    suffix = data.get('student_id_suffix')
-    if suffix and suffix != filename_suffix:
-        errors.append(f'frontmatter student_id_suffix "{suffix}" does not match filename "{filename_suffix}"')
+    name = data.get('name')
+    if not name or not isinstance(name, str):
+        errors.append("missing or non-string name (required, lowercase English handle)")
+    elif not HANDLE_RE.match(name):
+        errors.append(f'name "{name}" is invalid: must be lowercase English (letters, digits, underscore, dash) starting with a letter')
+    elif name != filename_handle:
+        errors.append(f'frontmatter name "{name}" does not match filename handle "{filename_handle}"')
 
     submissions = data.get('submissions') or {}
     if not isinstance(submissions, dict):

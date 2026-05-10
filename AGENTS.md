@@ -11,9 +11,8 @@ Follow these steps EXACTLY. Do not improvise.
 4. writeup URL (notes / reflection)
 5. description (one Chinese sentence, ≤80 Chinese characters; count via JS `[...str].length`)
 6. (optional) self-provided screenshot URL
-7. student name in Chinese (only if creating their file for the first time)
-8. student pinyin lowercase (only if creating)
-9. last 3 digits of student ID (only if creating)
+7. **handle** — only if creating a new file: a lowercase English nickname matching `^[a-z][a-z0-9_-]*$`. This is what shows up on the gallery. Tell them: "pick anything you'd be OK with classmates seeing — your pinyin (`yisiliu`), an English name (`john`), a stage name (`alex_l`), whatever". They do **not** have to use real-name pinyin. If they're not sure, suggest their pinyin as a default.
+8. **last 3 digits of their student ID** — only if creating a new file. This goes only into the filename (`<handle>-<XYZ>.md`), never into frontmatter, never on the public site. The instructor uses it to match submissions to the class roster.
 
 The student's GitHub username is auto-derived: `gh api user --jq .login`. Use it as the fork owner.
 
@@ -66,26 +65,49 @@ Check if their fork exists: `gh repo view "$USERNAME/vibe-coding-sp26" --json na
   git push origin main
   ```
 
-## Step 2 — Locate or create the student file
+## Step 2 — Locate or create / migrate the student file
 
-The filename is `students/<pinyin>-<XYZ>.md` where XYZ = last 3 digits of student ID.
+The filename is `students/<handle>-<XYZ>.md`:
+- `handle`: lowercase English, `^[a-z][a-z0-9_-]*$` — the student's chosen public nickname.
+- `XYZ`: their student ID's last 3 digits — appears only in the filename (instructor-only identifier).
 
-- If the file exists: open it for editing.
-- If not, create it with this template (substitute the placeholders):
+### Case A: This is their first submission (no existing file in their fork)
 
-  ```markdown
-  ---
-  name: <CHINESE NAME>
-  submissions: {}
-  ---
+Ask for handle and XYZ (see Inputs section above for how to phrase the handle question). Then create `students/<handle>-<XYZ>.md` with this content:
 
-  # <CHINESE NAME>的作品集
+```markdown
+---
+name: <handle>
+submissions: {}
+---
 
-  (optional free-form notes)
-  ```
+# <handle>'s portfolio
 
-  The filename `<pinyin>-<XYZ>.md` is the source of truth for pinyin and student ID
-  suffix — don't repeat them in frontmatter.
+(optional free-form notes)
+```
+
+`name` in frontmatter MUST be exactly the handle (same string as in the filename). It is the only identity field; do not add `pinyin`, `student_id_suffix`, or Chinese-name fields — they're not part of the schema.
+
+### Case B: They already have a file in their fork (returning student or earlier submission)
+
+Run `ls students/` in their local clone. If you see a file matching their fork (you'll know — there should be only one of theirs), open it.
+
+**Schema-migration check** (do this before adding the new assignment):
+
+If the existing file fails ANY of these, fix it inline:
+1. `name` field is non-Latin (e.g. Chinese characters) → ask them for an English handle now (per Case A guidance).
+2. The frontmatter contains `pinyin` or `student_id_suffix` keys → remove those keys.
+3. The handle in the filename and the `name` field don't match → rename the file with `git mv` so the filename's handle matches `name`. Preserve the `-<XYZ>` suffix from the old filename. (If their old file was `wangpeng-224.md` and they pick handle `peng_w`, new file is `peng_w-224.md`.)
+
+**Then add the new assignment per Step 3.**
+
+If they already have an open PR (check with `gh pr list --author @me --repo yisiliu/vibe-coding-sp26`), they want to update that PR rather than open a new one. Switch to its branch with `gh pr checkout <PR_NUMBER>`. After the migration + new commit, push with `--force-with-lease` to update the existing PR:
+
+```bash
+git push --force-with-lease
+```
+
+Don't open a second PR — `force-with-lease` updates the open one in place.
 
 ## Step 3 — Add or replace the assignment entry
 
@@ -106,59 +128,62 @@ If `submissions:` is `{}` (empty), change it to a multi-line mapping before addi
 
 ## Step 4 — Validate locally before pushing
 
-Run:
+Run the validator script that ships with this repo:
 
 ```bash
-python3 -c "
-import sys, yaml, re
-content = open('students/<pinyin>-<XYZ>.md').read()
-fm = content.split('---', 2)[1]
-data = yaml.safe_load(fm)
-assert data.get('name'), 'missing name'
-for key, sub in (data.get('submissions') or {}).items():
-    assert re.match(r'^assignment-[1-4]\$', key), f'bad key {key}'
-    for f in ['github_repo', 'website', 'writeup', 'description']:
-        assert sub.get(f), f'{key}: missing {f}'
-    for f in ['github_repo', 'website', 'writeup']:
-        assert sub[f].startswith(('http://', 'https://')), f'{key}.{f}: bad URL'
-print('OK')
-"
+python3 scripts/validate-submission.py students/<handle>-<XYZ>.md
 ```
 
-If the script prints anything other than `OK`, fix the file and re-run.
+It checks: filename pattern, frontmatter `name` matches handle, all required URLs are present and `http(s)://`, description ≤80 chars. If it prints anything other than `::notice ...::OK ...`, fix the file and re-run.
 
 ## Step 5 — Commit, push, open PR
 
+First, stage all changes (use `git add -A` so a rename via `git mv` is captured cleanly):
+
 ```bash
-git add students/<pinyin>-<XYZ>.md
-git commit -m "feat: <name> 提交作业 N"
+git add -A
+git commit -m "feat: <handle> 提交作业 N"
+```
+
+**If they have an existing PR open** (from Case B in Step 2), push to its branch and update in place:
+
+```bash
+git push --force-with-lease
+```
+
+(Don't open a new PR. The existing one updates automatically.)
+
+**If this is a brand-new submission**, push and open a PR:
+
+```bash
 git push origin main
 gh pr create \
   --repo yisiliu/vibe-coding-sp26 \
-  --title "<name> 作业 N" \
+  --title "<handle> 作业 N" \
   --body "提交作业 N"
 ```
 
-`gh pr create` will print the PR URL. Capture it.
+`gh pr create` prints the PR URL. Capture it.
 
 ## Step 6 — Tell the student
 
 Report back:
 
-1. The PR URL.
-2. "yisiliu 通常一两天内 merge。merge 后第二天 gallery 会出现你的作品。"
-3. "想刷新缩略图就在 PR 描述里加 `[refresh-screenshot]`。"
+1. The PR URL (or "PR 已更新" if you force-pushed an existing PR).
+2. "yisiliu 每周日晚上集中合 PR。周一上 https://vibe.yisiliu.xyz，往下滑到「作业」那段，点开作业 N 那条，最下面「同学的作品」格子里就有你的卡片。"
+3. "想刷新自动截的缩略图就在 PR 描述里加 `[refresh-screenshot]`。"
 
 ## Common errors
 
 - **YAML parse error** → 检查冒号后空格、字符串里的 `:` 是否需要加引号
 - **你不小心改了别的同学的 .md** → `git checkout -- students/<别人>.md` 撤销，重新 push
-- **`gh` CLI 没装** → 让学生先装 (https://cli.github.com)
-- **同名同学且学号末3位也撞了** → 后到的同学改文件名为 `<pinyin>-<XYZ>-2.md`（极罕见）
+- **handle 撞车** (两个人选了同一个 handle) → 后来的人改成不同的（加数字、缩写都行），不会影响显示效果
+- **handle 含中文/大写** → validator 拒掉。改成小写英文 + 数字 + `_` `-`，开头必须是字母
 
 ## What NOT to do
 
 - 不要编辑 `students/` 目录外的任何文件
 - 不要在一个 PR 里改多个学生的 `.md`
-- 不要重命名 schema 里的字段
+- 不要重命名 schema 里的字段（不要加 `pinyin`, `student_id_suffix`, `chinese_name` 这种）
 - 不要把 description 写成英文（这门课要求中文）
+- 不要把学号末3位放进 frontmatter——它只在文件名里出现

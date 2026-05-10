@@ -1,5 +1,5 @@
 ---
-name: 刘怿斯
+name: yisiliu
 github: yisiliu
 submissions:
   assignment-1:
@@ -9,6 +9,6 @@ submissions:
     description: 这门课自己的课程网站，用作示例
 ---
 
-# 刘怿斯 — 示例
+# yisiliu — 示例
 
 这是一份示范文件，展示提交格式。学生看到这里就知道自己的文件应该长什么样。
